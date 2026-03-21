@@ -2,11 +2,37 @@
 
 import { Theme } from "@/types/authTypes";
 import { MouseEvent } from "react";
+import { useRouter } from "next/navigation";
+import { signIn } from "@/lib/auth/auth-client";
 
 function GoogleButton({ t }: { t: Theme }) {
+  const router = useRouter();
+
+  const handleGoogleSignIn = async () => {
+    try {
+      await signIn.social(
+        {
+          provider: "google",
+          callbackURL: "/dashboard",
+        },
+        {
+          onSuccess: () => {
+            router.push("/dashboard");
+          },
+          onError: error => {
+            console.error("Google sign-in error:", error);
+          },
+        },
+      );
+    } catch (error) {
+      console.error("Google sign-in error:", error);
+    }
+  };
+
   return (
     <div style={{ marginBottom: 28 }}>
       <button
+        onClick={handleGoogleSignIn}
         style={{
           width: "100%",
           padding: "11px 0",
