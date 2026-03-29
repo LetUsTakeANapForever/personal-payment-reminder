@@ -5,8 +5,8 @@ import {
   GatewayIntentBits,
   Partials,
 } from "discord.js";
-import { PingCommand } from "./commands/ping";
-import { Command, ExtendedClient } from "@/types/discordTypes";
+import { ExtendedClient } from "@/types/discordTypes";
+import { loadCommands } from "./loadCommands";
 
 const client = new Client({
   intents: [
@@ -24,12 +24,6 @@ const client = new Client({
 
 client.commands = new Collection();
 
-const commands: Command[] = [PingCommand];
-
-for (const command of commands) {
-  client.commands.set(command.data.name, command);
-}
-
 const buildInviteUrl = () => {
   const applicationId = process.env.DISCORD_APPLICATION_ID;
 
@@ -43,7 +37,7 @@ const buildInviteUrl = () => {
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user?.tag}`);
 
-  const guildId = process.env.DISCORD_GUILD_ID;
+  const guildId = process.env.DISCORD_GUILD_ID; // TODO: dicord guild id is only for deveplopment environment
 
   if (!guildId) {
     console.warn(
@@ -118,6 +112,14 @@ export const startDiscordBot = async () => {
   }
 
   try {
+    const commands = await loadCommands();
+
+    client.commands.clear();
+
+    for (const command of commands) {
+      client.commands.set(command.data.name, command);
+    }
+
     await client.login(token);
   } catch (error) {
     console.error("Discord login failed:", error);
