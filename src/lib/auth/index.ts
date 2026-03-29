@@ -9,6 +9,8 @@ const adminRole = "admin";
 const userRole = "user";
 
 export const auth = betterAuth({
+  appName: 'payping',
+  secret: process.env.BETTER_AUTH_SECRET,
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {
