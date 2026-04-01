@@ -34,6 +34,19 @@ export const auth = betterAuth({
         };
       },
     },
+    discord: {
+      clientId: process.env.DISCORD_APPLICATION_ID as string,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET as string,
+      permissions: 2048 | 16384, // Send msg and embeded links
+      mapProfileToUser: (profile) => {
+        return {
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+          role: userRole,
+        };
+      },
+    }
   },
   plugins: [
     admin({
