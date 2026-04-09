@@ -15,6 +15,34 @@
       "when": 1774068427953,
       "tag": "0001_swift_wither",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1774867219971,
+      "tag": "0002_familiar_the_phantom",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1774869748600,
+      "tag": "0003_awesome_mockingbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1775034694372,
+      "tag": "0004_absent_sway",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1775721614427,
+      "tag": "0005_premium_hellfire_club",
+      "breakpoints": true
     }
   ]
 }

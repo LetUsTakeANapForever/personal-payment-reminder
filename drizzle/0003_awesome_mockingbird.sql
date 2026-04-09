@@ -1,0 +1,3 @@
+ALTER TABLE "discord_payment_document" ADD COLUMN "payment_id" text;--> statement-breakpoint
+ALTER TABLE "discord_payment_document" ADD CONSTRAINT "discord_payment_document_payment_id_payment_id_fk" FOREIGN KEY ("payment_id") REFERENCES "public"."payment"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "discord_payment_document_payment_idx" ON "discord_payment_document" USING btree ("payment_id");

@@ -2,6 +2,8 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
 } from "discord.js";
+import { createDiscordPaymentRecord } from "@/lib/db/discord/discordPayments";
+import { findDiscordAccountByDiscordUserId } from "@/lib/db/discord/discordUserLinks";
 import { Command } from "@/types/discordTypes";
 
 const addPaymentCommand = new SlashCommandBuilder()
@@ -74,23 +76,51 @@ const addPaymentCommand = new SlashCommandBuilder()
 
 const isIsoDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-const formatAttachment = (
+const getAttachmentPayload = (
   interaction: ChatInputCommandInteraction,
   optionName: string,
 ) => {
   const attachment = interaction.options.getAttachment(optionName);
 
   if (!attachment) {
-    return "No file uploaded.";
+    return null;
   }
 
-  return `Uploaded File: ${attachment.name} (${attachment.url})`;
+  return {
+    name: attachment.name,
+    url: attachment.url,
+    contentType: attachment.contentType,
+    size: attachment.size,
+  };
+};
+
+const createDiscordPayment = async (
+  interaction: ChatInputCommandInteraction,
+  paymentType: string,
+  paymentData: Record<string, unknown>,
+) => {
+  const discordAccount = await findDiscordAccountByDiscordUserId(interaction.user.id);
+
+  if (!discordAccount) {
+    throw new Error(`Discord user ${interaction.user.id} is not linked to an app user. Please link your Discord account first.`);
+  }
+
+  return createDiscordPaymentRecord({
+    userId: discordAccount.userId,
+    accountId: discordAccount.id,
+    discordUserId: interaction.user.id,
+    paymentType,
+    paymentData,
+    guildId: interaction.guildId,
+    channelId: interaction.channelId,
+    source: "discord",
+  });
 };
 
 export const AddPaymentCommand: Command = {
   data: addPaymentCommand,
   async execute(interaction: ChatInputCommandInteraction) {
-    await interaction.deferReply({ ephemeral: true });
+    await interaction.deferReply();
 
     const subcommand = interaction.options.getSubcommand();
 
@@ -111,11 +141,29 @@ export const AddPaymentCommand: Command = {
         return;
       }
 
-      await interaction.editReply({
-        content:
-          `Subscription payment captured.\n` +
-          `Title: ${title}\nStart Date: ${startDate}\nPeriod: ${period} month(s)`,
-      });
+      try {
+        const createdPayment = await createDiscordPayment(
+          interaction,
+          "subscription",
+          {
+            title,
+            startDate,
+            periodMonths: period,
+          },
+        );
+
+        await interaction.editReply({
+          content:
+            `Subscription payment saved.\n` +
+            `Document ID: ${createdPayment.document.id}\n` +
+            `App Payment ID: ${createdPayment.payment?.id ?? "Not linked to an app user yet"}\n` +
+            `Title: ${title}\nStart Date: ${startDate}\nPeriod: ${period} month(s)`,
+        });
+      } catch (error) {
+        await interaction.editReply({
+          content: `Error: ${error instanceof Error ? error.message : "Failed to create payment"}`,
+        });
+      }
       return;
     }
 
@@ -130,18 +178,35 @@ export const AddPaymentCommand: Command = {
         return;
       }
 
-      await interaction.editReply({
-        content:
-          `One-time payment captured.\n` +
-          `Title: ${title}\nDue Date: ${dueDate}`,
-      });
+      try {
+        const createdPayment = await createDiscordPayment(
+          interaction,
+          "one-time",
+          {
+            title,
+            dueDate,
+          },
+        );
+
+        await interaction.editReply({
+          content:
+            `One-time payment saved.\n` +
+            `Document ID: ${createdPayment.document.id}\n` +
+            `App Payment ID: ${createdPayment.payment?.id ?? "Not linked to an app user yet"}\n` +
+            `Title: ${title}\nDue Date: ${dueDate}`,
+        });
+      } catch (error) {
+        await interaction.editReply({
+          content: `Error: ${error instanceof Error ? error.message : "Failed to create payment"}`,
+        });
+      }
       return;
     }
 
     if (subcommand === "bill") {
       const title = interaction.options.getString("title", true);
       const dueDate = interaction.options.getString("due_date", true);
-      const receiptLine = formatAttachment(interaction, "receipt");
+      const receipt = getAttachmentPayload(interaction, "receipt");
 
       if (!isIsoDate(dueDate)) {
         await interaction.editReply({
@@ -150,11 +215,30 @@ export const AddPaymentCommand: Command = {
         return;
       }
 
-      await interaction.editReply({
-        content:
-          `Bill payment captured.\n` +
-          `Title: ${title}\nDue Date: ${dueDate}\n${receiptLine}`,
-      });
+      try {
+        const createdPayment = await createDiscordPayment(
+          interaction,
+          "bill",
+          {
+            title,
+            dueDate,
+            receipt,
+          },
+        );
+
+        await interaction.editReply({
+          content:
+            `Bill payment saved.\n` +
+            `Document ID: ${createdPayment.document.id}\n` +
+            `App Payment ID: ${createdPayment.payment?.id ?? "Not linked to an app user yet"}\n` +
+            `Title: ${title}\nDue Date: ${dueDate}\n` +
+            `${receipt ? `Receipt: ${receipt.name} (${receipt.url})` : "No file uploaded."}`,
+        });
+      } catch (error) {
+        await interaction.editReply({
+          content: `Error: ${error instanceof Error ? error.message : "Failed to create payment"}`,
+        });
+      }
       return;
     }
 

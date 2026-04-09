@@ -6,6 +6,7 @@ import {
   text,
   index,
   decimal,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -49,7 +50,7 @@ export const account = pgTable(
   "account",
   {
     id: text("id").primaryKey(),
-    accountId: text("account_id").notNull(),
+    discordUserId: text("discord_user_id").notNull(),
     providerId: text("provider_id").notNull(),
     userId: text("user_id")
       .notNull()
@@ -107,6 +108,41 @@ export const payment = pgTable(
   (table) => [index("payment_userId_idx").on(table.userId)],
 );
 
+export const discordPaymentDocument = pgTable(
+  "discord_payment_document",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    paymentId: text("payment_id").references(() => payment.id, { onDelete: "set null" }),
+    accountId: text("account_id")
+      .notNull()
+      .references(() => account.id, { onDelete: "cascade" }),
+    discordUserId: text("discord_user_id").notNull(),
+    paymentType: text("payment_type").notNull(),
+    paymentData: jsonb("payment_data")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    guildId: text("guild_id"),
+    channelId: text("channel_id"),
+    source: text("source").notNull().default("discord"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("discord_payment_document_user_idx").on(table.userId),
+    index("discord_payment_document_payment_idx").on(table.paymentId),
+    index("discord_payment_document_account_idx").on(table.accountId),
+    index("discord_payment_document_discord_user_idx").on(table.discordUserId),
+    index("discord_payment_document_type_idx").on(table.paymentType),
+    index("discord_payment_document_guild_idx").on(table.guildId),
+  ],
+);
+
 export const usersRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
@@ -120,11 +156,12 @@ export const sessionsRelations = relations(session, ({ one }) => ({
   }),
 }));
 
-export const accountsRelations = relations(account, ({ one }) => ({
+export const accountsRelations = relations(account, ({ one, many }) => ({
   user: one(user, {
     fields: [account.userId],
     references: [user.id],
   }),
+  discordPaymentDocuments: many(discordPaymentDocument),
 }));
 
 export const paymentsRelations = relations(payment, ({ one }) => ({
@@ -133,3 +170,21 @@ export const paymentsRelations = relations(payment, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+export const discordPaymentDocumentRelations = relations(
+  discordPaymentDocument,
+  ({ one }) => ({
+    user: one(user, {
+      fields: [discordPaymentDocument.userId],
+      references: [user.id],
+    }),
+    payment: one(payment, {
+      fields: [discordPaymentDocument.paymentId],
+      references: [payment.id],
+    }),
+    account: one(account, {
+      fields: [discordPaymentDocument.accountId],
+      references: [account.id],
+    }),
+  }),
+);
