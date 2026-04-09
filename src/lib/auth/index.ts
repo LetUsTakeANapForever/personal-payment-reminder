@@ -40,7 +40,7 @@ export const auth = betterAuth({
       permissions: 2048 | 16384, // Send msg and embeded links
       mapProfileToUser: (profile) => {
         return {
-          name: profile.username,
+          name: profile.global_name ?? undefined, // Display name
           email: profile.email,
           image: profile.avatar ? `https://cdn.discordapp.com/avatars/${profile.id}/${profile.avatar}.png` : undefined,
           role: userRole,
