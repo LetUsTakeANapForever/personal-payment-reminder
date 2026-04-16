@@ -2,11 +2,8 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
 } from "discord.js";
-import { and, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { deleteDiscordPaymentRecord } from "@/lib/db/discord/discordPayments";
-import { findDiscordAccountByDiscordUserId } from "@/lib/db/discord/discordUserLinks";
-import { discordPaymentDocument } from "@/lib/db/schema";
+import { deleteDiscordPaymentRecord, getOwnedDocument } from "@/lib/discord/actions/discordPayments";
+import { ensureDiscordAccount } from "@/lib/discord/actions/discordUserLinks";
 import { Command } from "@/types/discordTypes";
 
 const deletePaymentCommand = new SlashCommandBuilder()
@@ -24,21 +21,6 @@ const deletePaymentCommand = new SlashCommandBuilder()
       ),
   );
 
-const getOwnedDocument = async (documentId: string, discordUserId: string) => {
-  const [document] = await db
-    .select()
-    .from(discordPaymentDocument)
-    .where(
-      and(
-        eq(discordPaymentDocument.id, documentId),
-        eq(discordPaymentDocument.discordUserId, discordUserId),
-      ),
-    )
-    .limit(1);
-
-  return document ?? null;
-};
-
 export const DeletePaymentCommand: Command = {
   data: deletePaymentCommand,
   async execute(interaction: ChatInputCommandInteraction) {
@@ -54,17 +36,7 @@ export const DeletePaymentCommand: Command = {
         return;
       }
 
-      const discordAccount = await findDiscordAccountByDiscordUserId(
-        interaction.user.id,
-      );
-
-      if (!discordAccount) {
-        await interaction.editReply({
-          content:
-            "You're not linked to an app user. Please link your Discord account first.",
-        });
-        return;
-      }
+      await ensureDiscordAccount(interaction.user.id);
 
       const documentId = interaction.options.getString("id", true);
       const document = await getOwnedDocument(documentId, interaction.user.id);

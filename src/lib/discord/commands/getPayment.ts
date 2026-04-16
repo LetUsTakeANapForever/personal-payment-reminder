@@ -6,7 +6,7 @@ import {
 import { db } from "@/lib/db";
 import { discordPaymentDocument, payment } from "@/lib/db/schema";
 import { eq, desc, inArray, type InferSelectModel } from "drizzle-orm";
-import { findDiscordAccountByDiscordUserId } from "@/lib/db/discord/discordUserLinks";
+import { ensureDiscordAccount } from "@/lib/discord/actions/discordUserLinks";
 import { Command, PaymentData } from "@/types/discordTypes";
 
 type DiscordPaymentDoc = InferSelectModel<typeof discordPaymentDocument>;
@@ -137,17 +137,7 @@ export const GetPaymentCommand: Command = {
     const subcommand = interaction.options.getSubcommand();
 
     try {
-      const discordAccount = await findDiscordAccountByDiscordUserId(
-        interaction.user.id,
-      );
-
-      if (!discordAccount) {
-        await interaction.editReply({
-          content:
-            "You're not linked to an app user. Please link your Discord account first.",
-        });
-        return;
-      }
+      await ensureDiscordAccount(interaction.user.id);
 
       if (subcommand === "list") {
         const documents: DiscordPaymentDoc[] = await db

@@ -2,10 +2,10 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
 } from "discord.js";
-import { and, eq, type InferSelectModel } from "drizzle-orm";
+import { eq, type InferSelectModel } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { syncNormalizedPaymentForDocument } from "@/lib/db/discord/discordPayments";
-import { findDiscordAccountByDiscordUserId } from "@/lib/db/discord/discordUserLinks";
+import { getOwnedDocument, syncNormalizedPaymentForDocument } from "@/lib/discord/actions/discordPayments";
+import { ensureDiscordAccount } from "@/lib/discord/actions/discordUserLinks";
 import { discordPaymentDocument, payment } from "@/lib/db/schema";
 import { Command, type PaymentData } from "@/types/discordTypes";
 
@@ -154,33 +154,6 @@ const getAttachmentPayload = (
     contentType: attachment.contentType,
     size: attachment.size,
   };
-};
-
-const getOwnedDocument = async (documentId: string, discordUserId: string) => {
-  const [document] = await db
-    .select()
-    .from(discordPaymentDocument)
-    .where(
-      and(
-        eq(discordPaymentDocument.id, documentId),
-        eq(discordPaymentDocument.discordUserId, discordUserId),
-      ),
-    )
-    .limit(1);
-
-  return document ?? null;
-};
-
-const ensureDiscordAccount = async (discordUserId: string) => {
-  const discordAccount = await findDiscordAccountByDiscordUserId(discordUserId);
-
-  if (!discordAccount) {
-    throw new Error(
-      `Discord user ${discordUserId} is not linked to an app user. Please link your Discord account first.`,
-    );
-  }
-
-  return discordAccount;
 };
 
 const getAppPaymentById = async (paymentId: string | null) => {

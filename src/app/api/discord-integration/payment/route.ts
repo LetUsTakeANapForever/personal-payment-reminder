@@ -7,7 +7,7 @@ import {
   createDiscordPaymentRecord,
   deleteDiscordPaymentRecord,
   syncNormalizedPaymentForDocument,
-} from "@/lib/db/discord/discordPayments";
+} from "@/lib/discord/actions/discordPayments";
 
 type AddPaymentRequest = {
   paymentType?: unknown;

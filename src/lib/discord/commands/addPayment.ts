@@ -2,8 +2,8 @@ import {
   ChatInputCommandInteraction,
   SlashCommandBuilder,
 } from "discord.js";
-import { createDiscordPaymentRecord } from "@/lib/db/discord/discordPayments";
-import { findDiscordAccountByDiscordUserId } from "@/lib/db/discord/discordUserLinks";
+import { createDiscordPaymentRecord } from "@/lib/discord/actions/discordPayments";
+import { ensureDiscordAccount } from "@/lib/discord/actions/discordUserLinks";
 import { Command } from "@/types/discordTypes";
 
 const addPaymentCommand = new SlashCommandBuilder()
@@ -138,11 +138,7 @@ const createDiscordPayment = async (
   paymentType: string,
   paymentData: Record<string, unknown>,
 ) => {
-  const discordAccount = await findDiscordAccountByDiscordUserId(interaction.user.id);
-
-  if (!discordAccount) {
-    throw new Error(`Discord user ${interaction.user.id} is not linked to an app user. Please link your Discord account first.`);
-  }
+  const discordAccount = await ensureDiscordAccount(interaction.user.id);
 
   return createDiscordPaymentRecord({
     userId: discordAccount.userId,

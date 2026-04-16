@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { discordPaymentDocument, payment } from "@/lib/db/schema";
 
@@ -31,9 +31,6 @@ const asNonEmptyString = (value: unknown) =>
 
 const asPositiveInteger = (value: unknown) =>
   typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
-
-const asNonNegativeInteger = (value: unknown) =>
-  typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
 
 const asDecimal = (value: unknown): string | null => {
   if (typeof value === "number") {
@@ -225,3 +222,18 @@ export async function deleteDiscordPaymentRecord(document: DiscordPaymentDocumen
 
   return deletedDocument;
 }
+
+export const getOwnedDocument = async (documentId: string, discordUserId: string) => {
+  const [document] = await db
+    .select()
+    .from(discordPaymentDocument)
+    .where(
+      and(
+        eq(discordPaymentDocument.id, documentId),
+        eq(discordPaymentDocument.discordUserId, discordUserId),
+      ),
+    )
+    .limit(1);
+
+  return document ?? null;
+};
