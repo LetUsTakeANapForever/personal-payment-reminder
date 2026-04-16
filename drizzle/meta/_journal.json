@@ -43,6 +43,13 @@
       "when": 1775721614427,
       "tag": "0005_premium_hellfire_club",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775808501447,
+      "tag": "0006_foamy_argent",
+      "breakpoints": true
     }
   ]
 }

@@ -225,7 +225,7 @@ export async function PATCH(request: Request) {
       updateValues.paymentData = paymentData;
     }
 
-    if (discordPaymentDocument.userId !== undefined) {
+    if (accountId !== undefined) {
       if (typeof accountId !== "string" || accountId.trim().length === 0) {
         return NextResponse.json(
           { error: "accountId must be a non-empty string." },
