@@ -24,3 +24,12 @@ export type AddDiscordPaymentInput = {
   channelId?: string | null;
   source?: string | null;
 };
+
+export type PaymentData = {
+  description: string;
+  amount: string;
+  dueDate: Date;
+  category: string | null;
+  status: string;
+  notes: string | null;
+};
