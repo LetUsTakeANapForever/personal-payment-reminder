@@ -31,6 +31,19 @@ const addPaymentCommand = new SlashCommandBuilder()
           .setDescription("Billing period in months")
           .setMinValue(1)
           .setRequired(true),
+      )
+      .addNumberOption((option) =>
+        option
+          .setName("amount")
+          .setDescription("Payment amount")
+          .setMinValue(0)
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("category")
+          .setDescription("Payment category")
+          .setRequired(true),
       ),
   )
   .addSubcommand((subcommand) =>
@@ -48,7 +61,20 @@ const addPaymentCommand = new SlashCommandBuilder()
           .setName("due_date")
           .setDescription("Due date in YYYY-MM-DD format")
           .setRequired(true),
-      ),
+        )
+        .addNumberOption((option) =>
+          option
+        .setName("amount")
+        .setDescription("Payment amount (default: 0.00)")
+        .setMinValue(0)
+        .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("category")
+          .setDescription("Payment category")
+          .setRequired(true),
+      )
   )
   .addSubcommand((subcommand) =>
     subcommand
@@ -64,6 +90,19 @@ const addPaymentCommand = new SlashCommandBuilder()
         option
           .setName("due_date")
           .setDescription("Due date in YYYY-MM-DD format")
+          .setRequired(true),
+      )
+      .addNumberOption((option) =>
+        option
+          .setName("amount")
+          .setDescription("Payment amount")
+          .setMinValue(0)
+          .setRequired(true),
+      )
+      .addStringOption((option) =>
+        option
+          .setName("category")
+          .setDescription("Payment category")
           .setRequired(true),
       )
       .addAttachmentOption((option) =>
@@ -133,6 +172,8 @@ export const AddPaymentCommand: Command = {
       const title = interaction.options.getString("title", true);
       const startDate = interaction.options.getString("start_date", true);
       const period = interaction.options.getInteger("period", true);
+      const amount = interaction.options.getNumber("amount", true).toFixed(2);
+      const category = interaction.options.getString("category", true);
 
       if (!isIsoDate(startDate)) {
         await interaction.editReply({
@@ -149,6 +190,8 @@ export const AddPaymentCommand: Command = {
             title,
             startDate,
             periodMonths: period,
+            amount,
+            category,
           },
         );
 
@@ -157,7 +200,7 @@ export const AddPaymentCommand: Command = {
             `Subscription payment saved.\n` +
             `Document ID: ${createdPayment.document.id}\n` +
             `App Payment ID: ${createdPayment.payment?.id ?? "Not linked to an app user yet"}\n` +
-            `Title: ${title}\nStart Date: ${startDate}\nPeriod: ${period} month(s)`,
+            `Title: ${title}\nStart Date: ${startDate}\nPeriod: ${period} month(s)\nAmount: ฿${amount}\nCategory: ${category}`,
         });
       } catch (error) {
         await interaction.editReply({
@@ -170,6 +213,8 @@ export const AddPaymentCommand: Command = {
     if (subcommand === "one-time") {
       const title = interaction.options.getString("title", true);
       const dueDate = interaction.options.getString("due_date", true);
+      const amount = (interaction.options.getNumber("amount", true) ?? 0).toFixed(2);
+      const category = interaction.options.getString("category", true);
 
       if (!isIsoDate(dueDate)) {
         await interaction.editReply({
@@ -185,6 +230,8 @@ export const AddPaymentCommand: Command = {
           {
             title,
             dueDate,
+            amount,
+            category,
           },
         );
 
@@ -193,7 +240,7 @@ export const AddPaymentCommand: Command = {
             `One-time payment saved.\n` +
             `Document ID: ${createdPayment.document.id}\n` +
             `App Payment ID: ${createdPayment.payment?.id ?? "Not linked to an app user yet"}\n` +
-            `Title: ${title}\nDue Date: ${dueDate}`,
+            `Title: ${title}\nDue Date: ${dueDate}\nAmount: ฿${amount}\nCategory: ${category}`,
         });
       } catch (error) {
         await interaction.editReply({
@@ -206,6 +253,8 @@ export const AddPaymentCommand: Command = {
     if (subcommand === "bill") {
       const title = interaction.options.getString("title", true);
       const dueDate = interaction.options.getString("due_date", true);
+      const amount = interaction.options.getNumber("amount", true).toFixed(2);
+      const category = interaction.options.getString("category", true);
       const receipt = getAttachmentPayload(interaction, "receipt");
 
       if (!isIsoDate(dueDate)) {
@@ -222,6 +271,8 @@ export const AddPaymentCommand: Command = {
           {
             title,
             dueDate,
+            amount,
+            category,
             receipt,
           },
         );
@@ -231,7 +282,7 @@ export const AddPaymentCommand: Command = {
             `Bill payment saved.\n` +
             `Document ID: ${createdPayment.document.id}\n` +
             `App Payment ID: ${createdPayment.payment?.id ?? "Not linked to an app user yet"}\n` +
-            `Title: ${title}\nDue Date: ${dueDate}\n` +
+            `Title: ${title}\nDue Date: ${dueDate}\nAmount: ฿${amount}\nCategory: ${category}\n` +
             `${receipt ? `Receipt: ${receipt.name} (${receipt.url})` : "No file uploaded."}`,
         });
       } catch (error) {

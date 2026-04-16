@@ -7,6 +7,7 @@ import {
   index,
   decimal,
   jsonb,
+  integer,
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
@@ -99,6 +100,7 @@ export const payment = pgTable(
     status: text("status").notNull().default("pending"), // pending, completed, overdue
     category: text("category"),
     notes: text("notes"),
+    period: integer("period"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at")
       .defaultNow()

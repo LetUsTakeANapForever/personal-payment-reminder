@@ -32,6 +32,20 @@ const asNonEmptyString = (value: unknown) =>
 const asPositiveInteger = (value: unknown) =>
   typeof value === "number" && Number.isInteger(value) && value > 0 ? value : null;
 
+const asNonNegativeInteger = (value: unknown) =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+
+const asDecimal = (value: unknown): string | null => {
+  if (typeof value === "number") {
+    return value.toFixed(2);
+  }
+  if (typeof value === "string") {
+    const num = parseFloat(value);
+    return !isNaN(num) ? num.toFixed(2) : null;
+  }
+  return null;
+};
+
 const asRecord = (value: unknown): JsonRecord | null => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return null;
@@ -48,25 +62,30 @@ const buildNormalizedPayment = (document: DiscordPaymentDocument) => {
   if (document.paymentType === "subscription") {
     const title = asNonEmptyString(document.paymentData.title);
     const startDate = asNonEmptyString(document.paymentData.startDate);
-    const periodMonths = asPositiveInteger(document.paymentData.periodMonths);
+    const period = asPositiveInteger(document.paymentData.periodMonths);
+    const amount = asDecimal(document.paymentData.amount) || "0.00";
+    const category = asNonEmptyString(document.paymentData.category) || "subscription";
 
-    if (!title || !startDate || !periodMonths) {
+    if (!title || !startDate || !period) {
       return null;
     }
 
     return {
       description: title,
-      amount: "0.00",
-      dueDate: addMonths(toDate(startDate), periodMonths),
+      amount,
+      dueDate: addMonths(toDate(startDate), period),
       status: "pending",
-      category: "subscription",
-      notes: `Discord document ${document.id}. Period: ${periodMonths} month(s).`,
+      category,
+      period,
+      notes: `Discord document ${document.id}. Period: ${period} month(s).`,
     };
   }
 
   if (document.paymentType === "one-time") {
     const title = asNonEmptyString(document.paymentData.title);
     const dueDate = asNonEmptyString(document.paymentData.dueDate);
+    const amount = asDecimal(document.paymentData.amount) || "0.00";
+    const category = asNonEmptyString(document.paymentData.category) || "one-time";
 
     if (!title || !dueDate) {
       return null;
@@ -74,10 +93,10 @@ const buildNormalizedPayment = (document: DiscordPaymentDocument) => {
 
     return {
       description: title,
-      amount: "0.00",
+      amount,
       dueDate: toDate(dueDate),
       status: "pending",
-      category: "one-time",
+      category,
       notes: `Discord document ${document.id}.`,
     };
   }
@@ -85,6 +104,8 @@ const buildNormalizedPayment = (document: DiscordPaymentDocument) => {
   if (document.paymentType === "bill") {
     const title = asNonEmptyString(document.paymentData.title);
     const dueDate = asNonEmptyString(document.paymentData.dueDate);
+    const amount = asDecimal(document.paymentData.amount) || "0.00";
+    const category = asNonEmptyString(document.paymentData.category) || "bill";
     const receipt = asRecord(document.paymentData.receipt);
     const receiptUrl =
       receipt && typeof receipt.url === "string" ? receipt.url : null;
@@ -95,10 +116,10 @@ const buildNormalizedPayment = (document: DiscordPaymentDocument) => {
 
     return {
       description: title,
-      amount: "0.00",
+      amount,
       dueDate: toDate(dueDate),
       status: "pending",
-      category: "bill",
+      category,
       notes: receiptUrl
         ? `Discord document ${document.id}. Receipt: ${receiptUrl}`
         : `Discord document ${document.id}.`,
