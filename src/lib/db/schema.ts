@@ -99,6 +99,7 @@ export const payment = pgTable(
     dueDate: timestamp("due_date").notNull(),
     status: text("status").notNull().default("pending"), // pending, completed, overdue
     category: text("category"),
+    receipt: text("receipt_url"),
     notes: text("notes"),
     period: integer("period"),
     createdAt: timestamp("created_at").defaultNow().notNull(),

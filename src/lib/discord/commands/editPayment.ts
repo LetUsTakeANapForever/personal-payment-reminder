@@ -1,5 +1,6 @@
 import {
   ChatInputCommandInteraction,
+  EmbedBuilder,
   SlashCommandBuilder,
 } from "discord.js";
 import { eq, type InferSelectModel } from "drizzle-orm";
@@ -10,6 +11,10 @@ import { discordPaymentDocument, payment } from "@/lib/db/schema";
 import { Command, type PaymentData } from "@/types/discordTypes";
 
 type AppPayment = InferSelectModel<typeof payment>;
+type ReceiptData = {
+  url?: string;
+  contentType?: string;
+};
 
 const editPaymentCommand = new SlashCommandBuilder()
   .setName("edit-payment")
@@ -250,6 +255,85 @@ const getPaymentSummary = (
   notes: updatedPayment?.notes ?? originalPayment?.notes ?? null,
 });
 
+const getReceiptData = (receipt: unknown): ReceiptData | null => {
+  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) {
+    return null;
+  }
+
+  return receipt as ReceiptData;
+};
+
+const isImageUrl = (value: string) =>
+  /\.(png|jpe?g|gif|webp|bmp)$/i.test(value);
+
+const getReceiptUrl = (
+  updatedPayment: AppPayment | null,
+  originalPayment: AppPayment | null,
+  updatedReceipt: unknown,
+  originalReceipt: unknown,
+) => {
+  if (typeof updatedPayment?.receipt === "string" && updatedPayment.receipt.trim()) {
+    return updatedPayment.receipt.trim();
+  }
+
+  if (typeof originalPayment?.receipt === "string" && originalPayment.receipt.trim()) {
+    return originalPayment.receipt.trim();
+  }
+
+  const updatedReceiptData = getReceiptData(updatedReceipt);
+  if (typeof updatedReceiptData?.url === "string" && updatedReceiptData.url.trim()) {
+    return updatedReceiptData.url.trim();
+  }
+
+  const originalReceiptData = getReceiptData(originalReceipt);
+  if (typeof originalReceiptData?.url === "string" && originalReceiptData.url.trim()) {
+    return originalReceiptData.url.trim();
+  }
+
+  return null;
+};
+
+const getReceiptImageUrl = (
+  updatedPayment: AppPayment | null,
+  originalPayment: AppPayment | null,
+  updatedReceipt: unknown,
+  originalReceipt: unknown,
+) => {
+  const receiptUrl = getReceiptUrl(
+    updatedPayment,
+    originalPayment,
+    updatedReceipt,
+    originalReceipt,
+  );
+
+  if (!receiptUrl) {
+    return null;
+  }
+
+  const receiptData =
+    getReceiptData(updatedReceipt) ?? getReceiptData(originalReceipt);
+
+  if (typeof receiptData?.contentType === "string") {
+    return receiptData.contentType.startsWith("image/") ? receiptUrl : null;
+  }
+
+  return isImageUrl(receiptUrl) ? receiptUrl : null;
+};
+
+const buildReceiptEmbed = (
+  title: string,
+  receiptImageUrl: string | null,
+) => {
+  if (!receiptImageUrl) {
+    return null;
+  }
+
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setColor("#3498db")
+    .setImage(receiptImageUrl);
+};
+
 export const EditPaymentCommand: Command = {
   data: editPaymentCommand,
   async execute(interaction: ChatInputCommandInteraction) {
@@ -287,6 +371,15 @@ export const EditPaymentCommand: Command = {
           updatedPayment.payment,
           updatedPayment.originalPayment,
         );
+        const receiptEmbed = buildReceiptEmbed(
+          "Receipt",
+          getReceiptImageUrl(
+            updatedPayment.payment,
+            updatedPayment.originalPayment,
+            updatedPayment.document.paymentData.receipt,
+            updatedPayment.originalDocument.paymentData.receipt,
+          ),
+        );
 
         await interaction.editReply({
           content:
@@ -298,6 +391,7 @@ export const EditPaymentCommand: Command = {
             `Period: ${getDisplayValue(updatedPayment.document.paymentData.periodMonths, updatedPayment.originalDocument.paymentData.periodMonths, "N/A")} month(s)\n` +
             `Amount: $${paymentSummary.amount}\n` +
             `Category: ${paymentSummary.category ?? "Unknown"}`,
+          ...(receiptEmbed ? { embeds: [receiptEmbed] } : {}),
         });
         return;
       }
@@ -329,6 +423,15 @@ export const EditPaymentCommand: Command = {
           updatedPayment.payment,
           updatedPayment.originalPayment,
         );
+        const receiptEmbed = buildReceiptEmbed(
+          "Receipt",
+          getReceiptImageUrl(
+            updatedPayment.payment,
+            updatedPayment.originalPayment,
+            updatedPayment.document.paymentData.receipt,
+            updatedPayment.originalDocument.paymentData.receipt,
+          ),
+        );
 
         await interaction.editReply({
           content:
@@ -339,6 +442,7 @@ export const EditPaymentCommand: Command = {
             `Due Date: ${getDisplayValue(updatedPayment.document.paymentData.dueDate, updatedPayment.originalDocument.paymentData.dueDate, "N/A")}\n` +
             `Amount: $${paymentSummary.amount}\n` +
             `Category: ${paymentSummary.category ?? "Unknown"}`,
+          ...(receiptEmbed ? { embeds: [receiptEmbed] } : {}),
         });
         return;
       }
@@ -365,12 +469,27 @@ export const EditPaymentCommand: Command = {
             ...(dueDate !== null ? { dueDate } : {}),
             ...(amount !== null ? { amount: amount.toFixed(2) } : {}),
             ...(category !== null ? { category } : {}),
-            ...(receipt !== undefined ? { receipt } : {}),
+            ...(receipt !== undefined ? { receipt } : undefined),
           },
         );
         const paymentSummary = getPaymentSummary(
           updatedPayment.payment,
           updatedPayment.originalPayment,
+        );
+        const receiptUrl = getReceiptUrl(
+          updatedPayment.payment,
+          updatedPayment.originalPayment,
+          updatedPayment.document.paymentData.receipt,
+          updatedPayment.originalDocument.paymentData.receipt,
+        );
+        const receiptEmbed = buildReceiptEmbed(
+          "Receipt",
+          getReceiptImageUrl(
+            updatedPayment.payment,
+            updatedPayment.originalPayment,
+            updatedPayment.document.paymentData.receipt,
+            updatedPayment.originalDocument.paymentData.receipt,
+          ),
         );
 
         await interaction.editReply({
@@ -382,11 +501,9 @@ export const EditPaymentCommand: Command = {
             `Due Date: ${getDisplayValue(updatedPayment.document.paymentData.dueDate, updatedPayment.originalDocument.paymentData.dueDate, "N/A")}\n` +
             `Amount: $${paymentSummary.amount}\n` +
             `Category: ${paymentSummary.category ?? "Unknown"}\n` +
-            `${
-              updatedPayment.document.paymentData.receipt
-                ? "Receipt: updated"
-                : "Receipt: unchanged or not set"
-            }`,
+            `Notes: ${paymentSummary.notes ?? "N/A"}` +
+            `Receipt: ${receiptUrl ?? "unchanged or not set"}\n`,
+          ...(receiptEmbed ? { embeds: [receiptEmbed] } : {}),
         });
         return;
       }

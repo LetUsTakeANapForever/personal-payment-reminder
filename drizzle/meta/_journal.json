@@ -50,6 +50,13 @@
       "when": 1775808501447,
       "tag": "0006_foamy_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1776391999419,
+      "tag": "0007_quick_rocket_racer",
+      "breakpoints": true
     }
   ]
 }

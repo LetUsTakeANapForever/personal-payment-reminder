@@ -11,6 +11,11 @@ import { Command, PaymentData } from "@/types/discordTypes";
 
 type DiscordPaymentDoc = InferSelectModel<typeof discordPaymentDocument>;
 type AppPayment = InferSelectModel<typeof payment>;
+type ReceiptData = {
+  name?: string;
+  url?: string;
+  contentType?: string;
+};
 
 const getPaymentCommand = new SlashCommandBuilder()
   .setName("get-payment")
@@ -35,12 +40,7 @@ const getPaymentCommand = new SlashCommandBuilder()
 // Coerces JSON-backed values into strings for embed-friendly display fields.
 const asString = (value: unknown, fallback = "") =>
   typeof value === "string" ? value : fallback;
- 
 
-/*
-  "asAmountString" normalizes JSON or numeric amount values into the string format expected by PaymentData.
-  Example : asAmountString(15) -> "15.00"
-*/
 const asAmountString = (value: unknown, fallback = "0.00") => {
   if (typeof value === "string") {
     return value;
@@ -50,11 +50,9 @@ const asAmountString = (value: unknown, fallback = "0.00") => {
     return value.toFixed(2);
   }
 
-  return fallback; // the backup value returned when parsing fails, or a default value
+  return fallback;
 };
 
-
-// Builds a display-safe payment object directly from the Discord document when no normalized app payment exists.
 const getFallbackPaymentData = (doc: DiscordPaymentDoc): PaymentData => ({
   description: asString(doc.paymentData.title, "Unknown"),
   amount: asAmountString(doc.paymentData.amount),
@@ -64,13 +62,12 @@ const getFallbackPaymentData = (doc: DiscordPaymentDoc): PaymentData => ({
   notes: asString(doc.paymentData.notes),
 });
 
-// Converts either a normalized payment row or the raw Discord document into the single shape used by embeds.
 const toPaymentData = (
   doc: DiscordPaymentDoc,
   appPayment?: AppPayment,
 ): PaymentData => {
   if (!appPayment) {
-    return getFallbackPaymentData(doc); // a display-safe payment object directly from the Discord document
+    return getFallbackPaymentData(doc);
   }
 
   return {
@@ -83,8 +80,85 @@ const toPaymentData = (
   };
 };
 
-// Creates the Discord embed shown for both payment list items and payment detail responses.
-const formatPaymentEmbed = (doc: DiscordPaymentDoc, paymentData: PaymentData) => {
+const getReceiptData = (doc: DiscordPaymentDoc): ReceiptData | null => {
+  const receipt = doc.paymentData.receipt;
+
+  if (!receipt || typeof receipt !== "object" || Array.isArray(receipt)) {
+    return null;
+  }
+
+  return receipt as ReceiptData;
+};
+
+const isImageUrl = (value: string) =>
+  /\.(png|jpe?g|gif|webp|bmp)$/i.test(value);
+
+const getReceiptUrl = (
+  doc: DiscordPaymentDoc,
+  appPayment?: AppPayment,
+) => {
+  if (typeof appPayment?.receipt === "string" && appPayment.receipt.trim()) {
+    return appPayment.receipt.trim();
+  }
+
+  const receipt = getReceiptData(doc);
+  if (typeof receipt?.url === "string" && receipt.url.trim()) {
+    return receipt.url.trim();
+  }
+
+  return null;
+};
+
+const getReceiptImageUrl = (
+  doc: DiscordPaymentDoc,
+  appPayment?: AppPayment,
+) => {
+  const receiptUrl = getReceiptUrl(doc, appPayment);
+
+  if (!receiptUrl) {
+    return null;
+  }
+
+  const receipt = getReceiptData(doc);
+
+  if (typeof receipt?.contentType === "string") {
+    return receipt.contentType.startsWith("image/") ? receiptUrl : null;
+  }
+
+  return isImageUrl(receiptUrl) ? receiptUrl : null;
+};
+
+const getNotesForDisplay = (
+  doc: DiscordPaymentDoc,
+  paymentData: PaymentData,
+  appPayment?: AppPayment,
+) => {
+  const receiptUrl = getReceiptUrl(doc, appPayment);
+  const receiptImageUrl = getReceiptImageUrl(doc, appPayment);
+
+  if (!receiptUrl) {
+    return paymentData.notes;
+  }
+
+  if (!paymentData.notes) {
+    return receiptImageUrl ? "Receipt attached below." : `Receipt: ${receiptUrl}`;
+  }
+
+  if (receiptImageUrl) {
+    return `${paymentData.notes}\nReceipt attached below.`;
+  }
+
+  return `${paymentData.notes}\nReceipt: ${receiptUrl}`;
+};
+
+const formatPaymentEmbed = (
+  doc: DiscordPaymentDoc,
+  paymentData: PaymentData,
+  appPayment?: AppPayment,
+) => {
+  const notesForDisplay = getNotesForDisplay(doc, paymentData, appPayment);
+  const receiptImageUrl = getReceiptImageUrl(doc, appPayment);
+
   const embed = new EmbedBuilder()
     .setTitle(`Payment: ${paymentData.description}`)
     .setColor("#3498db")
@@ -92,7 +166,7 @@ const formatPaymentEmbed = (doc: DiscordPaymentDoc, paymentData: PaymentData) =>
       { name: "Document ID", value: doc.id, inline: true },
       { name: "Type", value: doc.paymentType, inline: true },
       { name: "Category", value: paymentData.category || "N/A", inline: true },
-      { name: "Amount", value: `฿${paymentData.amount}`, inline: true },
+      { name: "Amount", value: `$${paymentData.amount}`, inline: true },
       {
         name: "Due Date",
         value: paymentData.dueDate
@@ -111,18 +185,20 @@ const formatPaymentEmbed = (doc: DiscordPaymentDoc, paymentData: PaymentData) =>
     });
   }
 
-  if (paymentData.notes) {
+  if (notesForDisplay) {
     embed.addFields({
       name: "Notes",
-      value: paymentData.notes,
+      value: notesForDisplay,
       inline: false,
     });
   }
 
- embed.setFooter({
-    text: `Created: ${new
-  Date(doc.createdAt).toLocaleDateString()} | Updated: ${new
-  Date(doc.updatedAt).toLocaleDateString()}`,
+  if (receiptImageUrl) {
+    embed.setImage(receiptImageUrl);
+  }
+
+  embed.setFooter({
+    text: `Created: ${new Date(doc.createdAt).toLocaleDateString()} | Updated: ${new Date(doc.updatedAt).toLocaleDateString()}`,
   });
 
   return embed;
@@ -131,7 +207,6 @@ const formatPaymentEmbed = (doc: DiscordPaymentDoc, paymentData: PaymentData) =>
 export const GetPaymentCommand: Command = {
   data: getPaymentCommand,
   async execute(interaction: ChatInputCommandInteraction) {
-    // Handles the /get-payment slash command
     await interaction.deferReply();
 
     const subcommand = interaction.options.getSubcommand();
@@ -153,7 +228,6 @@ export const GetPaymentCommand: Command = {
           return;
         }
 
-        // Get all associated payments
         const paymentIds = documents
           .filter((doc) => doc.paymentId)
           .map((doc) => doc.paymentId);
@@ -168,12 +242,12 @@ export const GetPaymentCommand: Command = {
         const paymentMap = new Map(payments.map((p) => [p.id, p]));
 
         const embeds = documents.slice(0, 10).map((doc) => {
-          const paymentData = toPaymentData(
-            doc,
-            doc.paymentId ? paymentMap.get(doc.paymentId) : undefined,
-          );
+          const appPayment = doc.paymentId
+            ? paymentMap.get(doc.paymentId)
+            : undefined;
+          const paymentData = toPaymentData(doc, appPayment);
 
-          return formatPaymentEmbed(doc, paymentData);
+          return formatPaymentEmbed(doc, paymentData, appPayment);
         });
 
         await interaction.editReply({
@@ -188,9 +262,7 @@ export const GetPaymentCommand: Command = {
         const [doc] = (await db
           .select()
           .from(discordPaymentDocument)
-          .where(
-            eq(discordPaymentDocument.id, docId),
-          )) as DiscordPaymentDoc[];
+          .where(eq(discordPaymentDocument.id, docId))) as DiscordPaymentDoc[];
 
         if (!doc) {
           await interaction.editReply({
@@ -201,26 +273,27 @@ export const GetPaymentCommand: Command = {
 
         if (doc.discordUserId !== interaction.user.id) {
           await interaction.editReply({
-            content:
-              "You don't have permission to view this payment.",
+            content: "You don't have permission to view this payment.",
           });
           return;
         }
 
+        let appPayment: AppPayment | undefined;
         let paymentData: PaymentData = toPaymentData(doc);
 
         if (doc.paymentId) {
-          const [appPayment] = await db
+          const [selectedPayment] = await db
             .select()
             .from(payment)
             .where(eq(payment.id, doc.paymentId));
 
-          if (appPayment) {
-            paymentData = toPaymentData(doc, appPayment);
+          if (selectedPayment) {
+            appPayment = selectedPayment;
+            paymentData = toPaymentData(doc, selectedPayment);
           }
         }
 
-        const embed = formatPaymentEmbed(doc, paymentData);
+        const embed = formatPaymentEmbed(doc, paymentData, appPayment);
 
         await interaction.editReply({
           embeds: [embed],
